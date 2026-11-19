@@ -22,7 +22,7 @@ def get_docs(token: str):
     return docs
 
 
-def save_docs(documents : list[dict], savefolder_path: Path | None = None):
+def save_docs(documents : list[dict], savefolder_path: Path | None = None, only_types: list[str] | None = None):
     '''
     Скачиваем и сохраняем документы в папку
     '''
@@ -35,7 +35,12 @@ def save_docs(documents : list[dict], savefolder_path: Path | None = None):
     else:
         savefolder_path = Path(savefolder_path)
     savefolder_path.mkdir(parents=True, exist_ok=True)
-    
+
+    # Если doc_types не указан, скачиваются все файлы
+    if only_types:
+        docs_with_selected_types = [doc for doc in documents if get_safe_file_path("", doc).suffix in only_types]
+        documents = docs_with_selected_types
+    downloads_count = len(documents)
     downloaded = 0
     crushed = []
     for doc in documents:
@@ -44,9 +49,11 @@ def save_docs(documents : list[dict], savefolder_path: Path | None = None):
             response.raise_for_status()
             file_path = get_safe_file_path(savefolder_path, doc)
             total_size = int(response.headers.get('content-length', 0))
+            if total_size == 0:
+                raise Exception('Файл пустой')
 
             clear_line()
-            print(f'✓ Скачано: {downloaded}/{len(documents)} ', end='')
+            print(f'✓ Скачано: {downloaded}/{downloads_count} ', end='')
             if crushed:
                 print(f'| С ошибкой: {len(crushed)} ✗', end='')
             print()
@@ -57,9 +64,6 @@ def save_docs(documents : list[dict], savefolder_path: Path | None = None):
                     if chunk:  # фильтруем keep-alive chunks
                         file.write(chunk)
                         chunks_got+= len(chunk)
-
-                    if total_size == 0:
-                        raise Exception('Файл пустой')
                     clear_line()
                     progress = (chunks_got / total_size) * 100
                     print(f'{doc['title']} – {progress:.1f}%', end='\r')
@@ -68,11 +72,11 @@ def save_docs(documents : list[dict], savefolder_path: Path | None = None):
 
 
         except Exception as e:
-            crushed.append(f'{doc['title']}: ({e}\n')
+            crushed.append(f'{doc['title']}: {e}\n')
     
 
     # Итоги загрузки
-    print(f'✓ Скачано {downloaded} / {len(documents)}')
+    print(f'✓ Скачано {downloaded} / {downloads_count}')
     if crushed:
         print('Не удалось скачать следующие документы:')
         for doc in crushed:
@@ -87,6 +91,7 @@ def get_safe_file_path(parent_path: Path, doc: dict):
         file_path = file_path.with_suffix(suffix)
     file_path = get_unique_filename(file_path)
     return file_path
+
 
 def get_unique_filename(filepath: Path):
     path = Path(filepath)
@@ -118,9 +123,11 @@ def clear_line():
     stdout.write('\033[K')
     stdout.flush()
 
+
 def raise_cariage():
     stdout.write('\033[1A')
     stdout.flush()
+
 
 def main():
     # Вставьте сюда свой токен, его можно получить через https://vkhost.github.io/
@@ -128,7 +135,11 @@ def main():
     if not token:
         token = input('Введите свой access-token:')
     docs = get_docs(token)
-    save_docs(docs)
+
+    # Если нужно скачать все файлы, оставьте None
+    only_types = None
+    only_types = [".mp4", ".gif"]
+    save_docs(docs, only_types=only_types)
 
 
 if __name__ == '__main__':
