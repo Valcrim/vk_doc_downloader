@@ -3,7 +3,7 @@ import requests
 from sys import stdout
 
 
-def get_docs(token):
+def get_docs(token: str):
     '''
     Получаем список документов из ВК в виде json
     '''
@@ -22,7 +22,7 @@ def get_docs(token):
     return docs
 
 
-def save_docs(documents, savefolder_path=None):
+def save_docs(documents : list[dict], savefolder_path: Path | None = None):
     '''
     Скачиваем и сохраняем документы в папку
     '''
@@ -79,7 +79,7 @@ def save_docs(documents, savefolder_path=None):
             print(doc)
 
 
-def get_safe_file_path(parent_path, doc):
+def get_safe_file_path(parent_path: Path, doc: dict):
     # Определяем имя и конечный путь для сохранения документа
     file_path = parent_path / Path(sanitize_filename(doc['title']))
     if not file_path.suffix:
@@ -88,7 +88,7 @@ def get_safe_file_path(parent_path, doc):
     file_path = get_unique_filename(file_path)
     return file_path
 
-def get_unique_filename(filepath):
+def get_unique_filename(filepath: Path):
     path = Path(filepath)
     if not path.exists():
         return path
@@ -107,7 +107,7 @@ def get_unique_filename(filepath):
         counter += 1
 
 
-def sanitize_filename(filename):
+def sanitize_filename(filename: str):
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
         filename = filename.replace(char, '_')
