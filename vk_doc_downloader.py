@@ -63,7 +63,7 @@ def get_docs(token: str):
     return docs
 
 
-def save_docs(documents : list[dict], save_path: Path | None = None, only_types: list[str] | None = None):
+def save_docs(documents : list[dict], save_path: Path | None = None, only_extetions: list[str] | None = None):
     '''
     Скачиваем и сохраняем документы в папку
     '''
@@ -78,8 +78,8 @@ def save_docs(documents : list[dict], save_path: Path | None = None, only_types:
     save_path.mkdir(parents=True, exist_ok=True)
 
     # Если doc_types не указан, скачиваются все файлы
-    if only_types:
-        docs_with_selected_types = [doc for doc in documents if doc.get("ext") in only_types]
+    if only_extetions:
+        docs_with_selected_types = [doc for doc in documents if doc.get("ext") in only_extetions]
         documents = docs_with_selected_types
 
     session = requests.session()
@@ -191,11 +191,9 @@ def main():
         token = input('Введите свой access-token:')
     docs = get_docs(token)
 
-    # Перечислите конкретные типы файлов в only_types, которые хотите скачать
-    # Если нужно скачать все файлы, оставьте None
-    only_types = None
-    # only_types = ["mp4", "gif", "png", "jpg", "pdf"] # И так далее..
-    save_docs(docs, only_types=only_types)
+    # Перечислите в only_extetions конкретные расширения, файлы с которыми хотите скачать
+    # only_extetions = ["mp4", "gif", "png", "jpg", "pdf"] # Формат расширений - без точки
+    save_docs(docs)
 
 
 if __name__ == '__main__':
