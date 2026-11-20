@@ -22,65 +22,71 @@ def get_docs(token: str):
     return docs
 
 
-def save_docs(documents : list[dict], savefolder_path: Path | None = None, only_types: list[str] | None = None):
+def save_docs(documents : list[dict], save_path: Path | None = None, only_types: list[str] | None = None):
     '''
     Скачиваем и сохраняем документы в папку
     '''
-    # Сохранять в папку рядом, если не указано явно
     if not documents:
         return
     
-    if savefolder_path is None:
-        savefolder_path = Path(__file__).parent / 'savefolder'
+    # Сохранять в папку рядом, если не указано явно
+    if save_path is None:
+        save_path = Path(__file__).parent / 'savefolder'
     else:
-        savefolder_path = Path(savefolder_path)
-    savefolder_path.mkdir(parents=True, exist_ok=True)
+        save_path = Path(save_path)
+    save_path.mkdir(parents=True, exist_ok=True)
 
     # Если doc_types не указан, скачиваются все файлы
     if only_types:
         docs_with_selected_types = [doc for doc in documents if get_safe_file_path("", doc).suffix in only_types]
         documents = docs_with_selected_types
-    downloads_count = len(documents)
+
+    doc_count = len(documents)
     downloaded = 0
     crushed = []
     for doc in documents:
+        show_download_progress(downloaded, doc_count, crushed)
         try:
-            response = requests.get(doc["url"], stream=True, timeout=30)
-            response.raise_for_status()
-            file_path = get_safe_file_path(savefolder_path, doc)
-            total_size = int(response.headers.get('content-length', 0))
-            if total_size == 0:
-                raise Exception('Файл пустой')
-
-            clear_line()
-            print(f'✓ Скачано: {downloaded}/{downloads_count} ', end='')
-            if crushed:
-                print(f'| С ошибкой: {len(crushed)} ✗', end='')
-            print()
-
-            with open(file_path, mode='wb') as file:
-                chunks_got = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:  # фильтруем keep-alive chunks
-                        file.write(chunk)
-                        chunks_got+= len(chunk)
-                    clear_line()
-                    progress = (chunks_got / total_size) * 100
-                    print(f'{doc['title']} – {progress:.1f}%', end='\r')
-                raise_cariage()
+            download_doc(doc, save_path)
             downloaded += 1
-
-
         except Exception as e:
-            crushed.append(f'{doc['title']}: {e}\n')
-    
+            crushed.append(f'{doc['title']}: {e}')
+        raise_cariage()
 
     # Итоги загрузки
-    print(f'✓ Скачано {downloaded} / {downloads_count}')
+    show_download_progress(downloaded, doc_count, crushed)
+    show_crushed(crushed)
+
+
+def show_download_progress(got, total, crushed):
+    print(f'✓ Скачано: {got}/{total} ', end='')
     if crushed:
-        print('Не удалось скачать следующие документы:')
-        for doc in crushed:
-            print(doc)
+        print(f'| С ошибкой: {len(crushed)} ✗', end='')
+    print()
+
+
+def show_crushed(crushed):
+    print('Не удалось скачать следующие документы:')
+    for doc in crushed:
+        print(doc, end="\n")
+
+
+def download_doc(doc: dict, path: Path):
+    response = requests.get(doc["url"], stream=True, timeout=30)
+    response.raise_for_status()
+    file_path = get_safe_file_path(path, doc)
+    expected_size = doc.get("size")
+
+    clear_line()
+    with open(file_path, mode='wb') as file:
+        chunks_got = 0
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:  # фильтруем keep-alive chunks
+                file.write(chunk)
+                chunks_got+= len(chunk)
+            clear_line()
+            progress = (chunks_got / expected_size) * 100
+            print(f'{doc['title']} – {progress:.1f}%', end='\r')
 
 
 def get_safe_file_path(parent_path: Path, doc: dict):
@@ -138,7 +144,7 @@ def main():
 
     # Если нужно скачать все файлы, оставьте None
     only_types = None
-    only_types = [".mp4", ".gif"]
+    # only_types = [".mp4", ".gif"]
     save_docs(docs, only_types=only_types)
 
 
