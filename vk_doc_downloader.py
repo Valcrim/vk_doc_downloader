@@ -2,6 +2,46 @@ from pathlib import Path
 import requests
 from requests import Session
 from sys import stdout
+import re
+import json
+
+DOC_URL_RE = re.compile(r'"docUrl"\s*:\s*("(?:[^"\\]|\\.)*")')
+HREF_RE = re.compile(r'docs_no_preview_download_btn_container.*?href="([^"]+)"', re.S)
+
+def extract_direct_url(page: bytes):
+    '''
+    Достаём прямую ссылку на файл из HTML-заглушки VK
+    '''
+    # Страница в cp1251, но ссылка ASCII, поэтому кодировка не важна
+    text = page.decode('utf-8', errors='ignore')
+    match = DOC_URL_RE.search(text)
+    if match:
+        return json.loads(match.group(1))  # json.loads снимает экранирование \/
+    match = HREF_RE.search(text)
+    return match.group(1) if match else None
+
+
+def get_response_without_stubs(session, doc):
+    '''
+    Возвращает ответ с реальным файлом, проходя через заглушки VK
+    '''
+    url = doc['url']
+    is_html_doc = doc.get('ext', '').lower() in ('.html', '.htm')
+
+    for _ in range(3):
+        response = session.get(url, stream=True, timeout=(10, 60))
+        response.raise_for_status()
+        content_type = response.headers.get('content-type', '').lower()
+
+        if is_html_doc or 'text/html' not in content_type:
+            return response  # это настоящий файл
+
+        page = response.content
+        url = extract_direct_url(page)
+        if not url:
+            raise Exception('Пришла заглушка VK, ссылку на файл найти не удалось')
+
+    raise Exception('Слишком много заглушек подряд')
 
 
 def get_docs(token: str):
@@ -68,13 +108,15 @@ def show_download_progress(got, total, crushed):
 
 
 def show_crushed(crushed):
+    if not crushed:
+        return
     print('Не удалось скачать следующие документы:')
     for doc in crushed:
         print(doc, end="\n")
 
 
 def download_doc(session: Session, doc: dict, path: Path):
-    response = session.get(doc["url"], stream=True, timeout=30)
+    response = get_response_without_stubs(session, doc)
     response.raise_for_status()
     file_path = get_safe_file_path(path, doc)
     expected_size = doc.get("size")
@@ -87,8 +129,13 @@ def download_doc(session: Session, doc: dict, path: Path):
                 file.write(chunk)
                 chunks_got+= len(chunk)
             clear_line()
-            progress = (chunks_got / expected_size) * 100
+            if expected_size:
+                progress = (chunks_got / expected_size) * 100
             print(f'{doc['title']} – {progress:.1f}%', end='\r')
+    response.close()
+
+    if expected_size and chunks_got != expected_size:
+        raise Exception(f'Размер {chunks_got} не совпал с ожидаемым {expected_size}')
 
 
 def get_safe_file_path(parent_path: Path, doc: dict):
