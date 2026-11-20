@@ -79,7 +79,7 @@ def save_docs(documents : list[dict], save_path: Path | None = None, only_types:
 
     # Если doc_types не указан, скачиваются все файлы
     if only_types:
-        docs_with_selected_types = [doc for doc in documents if get_safe_file_path("", doc).suffix in only_types]
+        docs_with_selected_types = [doc for doc in documents if doc.get("ext") in only_types]
         documents = docs_with_selected_types
 
     session = requests.session()
@@ -141,7 +141,7 @@ def download_doc(session: Session, doc: dict, path: Path):
 def get_safe_file_path(parent_path: Path, doc: dict):
     # Определяем имя и конечный путь для сохранения документа
     file_path = parent_path / Path(sanitize_filename(doc['title']))
-    if not file_path.suffix:
+    if file_path.suffix != ('.' + doc['ext']):
         suffix = '.' + doc['ext']
         file_path = file_path.with_suffix(suffix)
     file_path = get_unique_filename(file_path)
@@ -191,9 +191,10 @@ def main():
         token = input('Введите свой access-token:')
     docs = get_docs(token)
 
+    # Перечислите конкретные типы файлов в only_types, которые хотите скачать
     # Если нужно скачать все файлы, оставьте None
     only_types = None
-    # only_types = [".mp4", ".gif"]
+    # only_types = ["mp4", "gif", "png", "jpg", "pdf"] # И так далее..
     save_docs(docs, only_types=only_types)
 
 
