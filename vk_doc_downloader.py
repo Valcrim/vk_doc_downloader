@@ -1,5 +1,6 @@
 from pathlib import Path
 import requests
+from requests import Session
 from sys import stdout
 
 
@@ -41,13 +42,14 @@ def save_docs(documents : list[dict], save_path: Path | None = None, only_types:
         docs_with_selected_types = [doc for doc in documents if get_safe_file_path("", doc).suffix in only_types]
         documents = docs_with_selected_types
 
+    session = requests.session()
     doc_count = len(documents)
     downloaded = 0
     crushed = []
     for doc in documents:
         show_download_progress(downloaded, doc_count, crushed)
         try:
-            download_doc(doc, save_path)
+            download_doc(session, doc, save_path)
             downloaded += 1
         except Exception as e:
             crushed.append(f'{doc['title']}: {e}')
@@ -71,8 +73,8 @@ def show_crushed(crushed):
         print(doc, end="\n")
 
 
-def download_doc(doc: dict, path: Path):
-    response = requests.get(doc["url"], stream=True, timeout=30)
+def download_doc(session: Session, doc: dict, path: Path):
+    response = session.get(doc["url"], stream=True, timeout=30)
     response.raise_for_status()
     file_path = get_safe_file_path(path, doc)
     expected_size = doc.get("size")
